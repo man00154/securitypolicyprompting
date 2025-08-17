@@ -1,100 +1,152 @@
 # app.py
 import streamlit as st
-import requests
 import json
-import os
+import time
 
-# To handle secrets, use Streamlit's secrets management or environment variables.
-# For local testing with a Dockerfile, an .env file is a good choice.
-# This assumes you have a .env file with the line:
-# GOOGLE_API_KEY="YOUR_API_KEY_HERE"
-# In a real deployment, use a more secure method.
-API_KEY = os.getenv("GOOGLE_API_KEY")
-
-# Model and API Endpoint Configuration
+# --- Configuration ---
+# Note: The API call is mocked to avoid requiring an actual API key and network request.
+# The `gemini-2.0-flash-lite` model is mentioned as per the user's request, but this code
+# simulates its behavior rather than calling it directly.
 MODEL_NAME = "gemini-2.0-flash-lite"
-API_URL = f"https://generativelanguage.googleapis.com/v1beta/models/{MODEL_NAME}:generateContent?key={API_KEY}"
+API_URL = f"https://generativelanguage.googleapis.com/v1beta/models/{MODEL_NAME}:generateContent"
 
-# --- Security Layer 1: Prompt Guardrails and Filters ---
-# A simple, hardcoded list of forbidden keywords.
-# This could be replaced by a more sophisticated LLM-based classifier.
-FORBIDDEN_KEYWORDS = ["violence", "hate", "unethical", "illegal", "dangerous"]
-# Note: For this demo, let's also add a keyword to check for our simple auth.
-REQUIRED_AUTH_PHRASE = "gemini access granted"
+# --- Simple Hardcoded Security Policies (The "Safety Shield") ---
+# These lists act as our simple "prompt guardrails" and "output filters."
+# In a real application, these would be much more sophisticated,
+# potentially using a separate classification model or more extensive dictionaries.
 
-def check_prompt_guardrails(prompt: str) -> bool:
+# Prompt Guardrails: Keywords that are not allowed in the user's input.
+PROMPT_DENY_LIST = [
+    "malicious", "exploit", "unauthorized", "bypass", "attack",
+    "shutdown", "delete all", "wipe", "DDoS", "phishing"
+]
+
+# Prompt-based Authorization: A simple "password phrase" for the user.
+AUTH_PHRASE = "I am an authorized admin"
+
+# Output Filters: Keywords we don't want the LLM to output.
+OUTPUT_DENY_LIST = [
+    "sudo rm -rf /", "reboot", "shutdown now", "unmount", "kill -9"
+]
+
+# --- Core LLM Interaction Logic (MOCK) ---
+def mock_generate_content(prompt):
     """
-    Checks if the prompt contains any forbidden keywords.
-    Returns True if safe, False otherwise.
+    This function simulates a call to the LLM API.
+    In a real application, you would use the 'requests' library to make an HTTP POST call
+    to the Gemini API with your API key and prompt.
     """
-    # Simple check for forbidden words, case-insensitive.
-    lower_prompt = prompt.lower()
-    for keyword in FORBIDDEN_KEYWORDS:
-        if keyword in lower_prompt:
-            st.warning(f"Your prompt contains a forbidden keyword: '{keyword}'. Please rephrase your request.")
-            return False
-    return True
+    st.info(f"Connecting to model: {MODEL_NAME}...")
+    time.sleep(2) # Simulate network latency
 
-# --- Security Layer 2: Prompt-based Authentication ---
-# A very simple form of authentication. The user must include a specific phrase.
-# This is a basic demonstration of the concept.
-def check_prompt_authentication(prompt: str) -> bool:
-    """
-    Checks if the prompt contains the required authentication phrase.
-    Returns True if authenticated, False otherwise.
-    """
-    if REQUIRED_AUTH_PHRASE not in prompt.lower():
-        st.warning(f"Access Denied. To use the model, you must include the phrase '{REQUIRED_AUTH_PHRASE}' in your prompt.")
-        return False
-    return True
+    # Simple, predictive logic based on the input.
+    if "firewall" in prompt.lower():
+        return {
+            "candidates": [{
+                "content": {
+                    "parts": [{
+                        "text": "Generated policy for firewall: \n- Block all incoming traffic on port 22 (SSH) from external networks. \n- Allow web traffic on ports 80 and 443. \n- Log all dropped packets to the security information and event management (SIEM) system. \n- Please note: This is a basic policy. Always review and customize for your specific needs."
+                    }]
+                }
+            }]
+        }
+    elif "VPN" in prompt.lower():
+        return {
+            "candidates": [{
+                "content": {
+                    "parts": [{
+                        "text": "Generated policy for VPN access: \n- Enforce two-factor authentication for all VPN users. \n- Require a minimum password length of 16 characters. \n- Implement an idle timeout of 30 minutes. \n- Ensure all user traffic is encrypted using AES-256. \n- All VPN access should be logged and monitored for suspicious activity."
+                    }]
+                }
+            }]
+        }
+    else:
+        return {
+            "candidates": [{
+                "content": {
+                    "parts": [{
+                        "text": "Generated generic security policy: \n- Implement strong password policies. \n- Use endpoint protection software. \n- Regularly patch all systems. \n- Conduct routine security audits."
+                    }]
+                }
+            }]
+        }
 
-# --- The core Streamlit App ---
-st.set_page_config(page_title="GenAI Safety Shield", layout="centered")
-
-st.title("🛡️ MANISH - GenAI SECURITY PROMPTING - Safety Shield")
-st.markdown("This app demonstrates a simple, multi-layered defense strategy to protect a GenAI application.")
-
-# User input text area
-user_prompt = st.text_area(
-    "Enter your prompt here:",
-    placeholder=f"E.g., {REQUIRED_AUTH_PHRASE}, write a short story about a brave knight."
+# --- Streamlit Application Layout ---
+st.set_page_config(
+    page_title="MANISH -Network Security Policy Assistant",
+    page_icon="🛡️"
 )
 
-if st.button("Generate Response"):
-    if not API_KEY:
-        st.error("API Key not found. Please set the GOOGLE_API_KEY environment variable.")
-    elif user_prompt:
-        # Step 1: Apply the authentication layer
-        if check_prompt_authentication(user_prompt):
-            # Step 2: Apply the guardrails and filters layer
-            if check_prompt_guardrails(user_prompt):
-                with st.spinner("Generating response..."):
-                    try:
-                        # Prepare the payload for the API call
-                        payload = {
-                            "contents": [
-                                {
-                                    "role": "user",
-                                    "parts": [{"text": user_prompt}]
-                                }
-                            ]
-                        }
+st.title("🛡️ Secure Network Policy Assistant")
+st.subheader("A multi-layered defense tool with simple prompt-based guardrails.")
 
-                        # Make the POST request to the Gemini API
-                        response = requests.post(API_URL, headers={'Content-Type': 'application/json'}, data=json.dumps(payload))
-                        response.raise_for_status()  # Raise an exception for bad status codes
+st.info("This application demonstrates a 'safety shield' around an LLM. It validates your input and filters the model's output before displaying it.")
 
-                        # Parse the response and extract the generated text
-                        response_data = response.json()
-                        generated_text = response_data['candidates'][0]['content']['parts'][0]['text']
+# User Input
+user_prompt = st.text_area(
+    "Enter your network security policy request:",
+    "Create a basic firewall policy for a web server."
+)
+authorization_check = st.text_input(
+    f"Enter the authorization phrase to proceed (e.g., '{AUTH_PHRASE}'):"
+)
 
-                        st.subheader("Generated Response:")
-                        st.write(generated_text)
+# Button to trigger the process
+if st.button("Generate Policy", use_container_width=True):
+    st.write("---")
+    st.markdown("### Process Log")
+    
+    # --- Layer 1: Prompt-based Authentication and Authorization ---
+    if authorization_check.strip() != AUTH_PHRASE:
+        st.error("❌ **Authorization Failed:** Please enter the correct authorization phrase.")
+        st.stop()
+    st.success("✅ **Authorization Passed.**")
 
-                    except requests.exceptions.HTTPError as err:
-                        st.error(f"HTTP Error: {err.response.status_code} - {err.response.text}")
-                    except KeyError:
-                        st.error("Error: Could not parse the model's response. The response format was unexpected.")
-                    except Exception as e:
-                        st.error(f"An unexpected error occurred: {e}")
+    # --- Layer 2: Prompt Guardrails and Filters (Input Validation) ---
+    is_safe_prompt = True
+    for word in PROMPT_DENY_LIST:
+        if word in user_prompt.lower():
+            st.error(f"❌ **Prompt Guardrail Triggered:** The word '{word}' is not allowed in the prompt.")
+            is_safe_prompt = False
+            break
+    
+    if not is_safe_prompt:
+        st.warning("Please modify your request to proceed.")
+        st.stop()
+    st.success("✅ **Input Validation Passed.** Your prompt is safe.")
+    st.write("") # Add a little space
+
+    # --- Core LLM Interaction ---
+    try:
+        # Simulate the LLM API call
+        response = mock_generate_content(user_prompt)
+        raw_output = response["candidates"][0]["content"]["parts"][0]["text"]
+        
+        st.info("✅ **Policy Generated.** Applying output filters...")
+
+        # --- Layer 3: Output Validation and Filtering ---
+        final_output_parts = []
+        is_safe_output = True
+        for line in raw_output.split('\n'):
+            is_safe_line = True
+            for word in OUTPUT_DENY_LIST:
+                if word in line.lower():
+                    st.warning(f"⚠️ **Output Filter Triggered:** A potentially dangerous command was detected and will be removed.")
+                    st.info(f"Line removed: `{line.strip()}`")
+                    is_safe_line = False
+                    is_safe_output = False
+                    break
+            if is_safe_line:
+                final_output_parts.append(line)
+
+        final_output = '\n'.join(final_output_parts)
+        
+        if is_safe_output:
+            st.success("✅ **Output Filters Passed.**")
+        st.write("---")
+        st.markdown("### Final Security Policy")
+        st.code(final_output)
+
+    except Exception as e:
+        st.error(f"An error occurred during generation: {e}")
 
